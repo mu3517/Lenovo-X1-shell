@@ -1,0 +1,19 @@
+[Unit]
+Description=led-monitor
+After=systemd-sysctl.service
+DefaultDependencies=no
+Before=sockets.target
+
+[Service]
+Type=simple
+Slice=syno_dsm_internal.slice
+ExecStart=/usr/bin/led-monitor  > /dev/null 2>&1 &
+ExecReload=
+ExecStop=
+PrivateTmp=false
+TimeoutSec=0
+RemainAfterExit=yes
+GuessMainPID=no
+
+[Install]
+WantedBy=multi-user.target

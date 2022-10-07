@@ -1,0 +1,231 @@
+#!/bin/sh
+
+open_flag=0
+
+time_start=$(date +"%s")
+
+fan_off() { #0
+#echo "fan_off"
+	open_flag=0
+	fan-ctl -l
+	echo "0" >/tmp/hd_speed.flag
+}
+
+fan_low() { #80
+#echo "fan_low"
+	open_flag=1
+	fan-ctl -m
+	echo "1" >/tmp/hd_speed.flag
+}
+
+fan_middle() { #120
+#echo "fan_middle"
+	open_flag=1
+	#fan-ctl -h(100)
+	fan-ctl -s 120
+	echo "2" >/tmp/hd_speed.flag
+}
+
+fan_subhigh() { #160
+#echo "fan_subhigh"
+	open_flag=1
+	fan-ctl -s 160
+	echo "3" >/tmp/hd_speed.flag
+}
+
+fan_high() { #200
+#echo "fan_high"
+	open_flag=1
+	#fan-ctl -v(140)
+	fan-ctl -s 200
+	echo "4" >/tmp/hd_speed.flag
+}
+
+fan_full(){ #255
+#echo "fan_full"
+	open_flag=1
+	fan-ctl -w
+	echo "5" >/tmp/hd_speed.flag
+}
+
+fan_warn() { #255
+#echo "fan_warn"
+	open_flag=1
+	fan-ctl -w
+	echo "5" >/tmp/hd_speed.flag
+}
+
+fan_pwm() {
+#echo "fan_pwm"
+	echo $1
+	fan-ctl -s $1
+	open_flag=1
+	echo "1" >/tmp/hd_speed.flag
+}
+CPUTEMP_TOTAL=0
+CPUTEMP_COUNT=0
+fan_control() {
+	#if [ -f /opt/conf/fantemp.ini ]; then
+	# 	source /opt/conf/fantemp.ini
+	#else
+	   cpu_halt=100
+	   hd_halt=65
+
+	   cpu_warn=95
+	   hd_warn=62
+
+	   cpu_bwarn=85
+	   hd_bwarn=60
+
+	   cpu_high=80
+	   hd_high=57
+
+	   cpu_subhigh=75
+	   hd_subhigh=55
+
+	   cpu_middle=65
+	   hd_middle=50
+
+	   cpu_low=55
+	   hd_low=45
+
+	   cpu_off=45
+	   hd_off=35
+	#fi
+	HDTEMP=$1
+
+ 	CPUTEMP=$2
+	#if [[ $CPUTEMP -ge $cpu_halt || $HDTEMP -ge $hd_halt ]]; then
+	if [ $HDTEMP -ge $hd_halt ]; then
+		
+		# /opt/bin/halt.sh
+		fan_warn
+		return 8
+	elif [[ $CPUTEMP -ge $cpu_warn || $HDTEMP -ge $hd_warn ]]; then
+		fan_warn
+		time_current=$(date +"%s")
+		time_idle=$(expr $time_current - $time_start)
+		if [ $time_idle -ge 60 ]; then
+			# beep -f 953.781 -l 250 -D 400 -r 8 & 
+			time_start=$(date +"%s")
+		fi
+		return 7
+	elif [[ $CPUTEMP -ge $cpu_bwarn || $HDTEMP -ge $hd_bwarn ]]; then
+		fan_full
+		return 6
+	elif [[ $CPUTEMP -ge $cpu_high || $HDTEMP -ge $hd_high ]]; then
+		fan_high
+		return 5
+	elif [[ $CPUTEMP -ge $cpu_subhigh || $HDTEMP -ge $hd_subhigh ]]; then
+		fan_subhigh
+		return 4
+	elif [[ $CPUTEMP -ge $cpu_middle || $HDTEMP -ge $hd_middle ]]; then
+		fan_middle
+		return 3
+	elif [[ $CPUTEMP -ge $cpu_low || $HDTEMP -ge $hd_low ]]; then
+		fan_low
+		return 2
+	elif [ $CPUTEMP -lt $cpu_low -a $CPUTEMP -gt $cpu_off ] || [ $HDTEMP -lt $hd_low -a $HDTEMP -gt $hd_off ]; then
+		if [ $open_flag -eq 1 ]; then
+			if [ $CPUTEMP -lt $cpu_low -a $CPUTEMP -gt $cpu_off ]; then
+				#(60-50)....(80---0): n*80/10
+				((pwm = $CPUTEMP - $cpu_off))
+				((pwm = $pwm * 8))
+			fi
+			if [ $HDTEMP -lt $hd_low -a $HDTEMP -gt $hd_off ]; then
+				#(55-50)...(80---0):n*80/5
+				((pwm = $HDTEMP - $hd_off))
+				((pwm = $pwm * 16))
+			fi
+			fan_pwm $pwm
+			
+		fi
+	elif [[ $CPUTEMP -le $cpu_off && $HDTEMP -le $hd_off ]]; then
+		fan_off
+		return 1
+	fi
+
+	return 0
+}
+
+fanPwm=$(fan-ctl -g -i 1)
+if [ $fanPwm -gt 0 ]; then
+	echo "1" >/tmp/hd_speed.flag
+fi
+fanPwm=$(fan-ctl -g -i 2)
+if [ $fanPwm -gt 0 ]; then
+	echo "1" >/tmp/hd_speed.flag
+fi
+fanPwm=$(fan-ctl -g -i 3)
+if [ $fanPwm -gt 0 ]; then
+	echo "1" >/tmp/hd_speed.flag
+fi
+
+while true; do
+	MAX_temp=0
+	MAX_DEV=""
+
+#各个硬盘温度
+	for _device in /sys/block/*/device; do
+		
+		if echo $(readlink -f $_device) | egrep -q "ata"; then
+			name=$(echo $_device | cut -f4 -d/)
+			dev="/dev/$name"
+
+			temp=1
+			if [ X"$dev" != "Xnull" -a X"$dev" != "X" ]; then
+				STATUS0=$(hdparm -C $dev | sed -n '3p' | awk '{print $4}')
+				if [ X"$STATUS0" != "Xstandby" ]; then
+					temp=$(smartctl -A $dev | sed -n '/Temperature_Celsius/p' | awk '{print $10}')
+					if [ X"$temp" = "X" ]; then
+						temp=0
+					fi
+				else
+					temp=1
+				fi
+			fi
+			if [ $temp -gt $MAX_temp ]; then
+				MAX_temp=$temp
+				MAX_DEV=$dev
+			fi
+		fi
+	done
+	sleep 1
+
+#cpu温度检测
+	CPUTEMP=$(cat /sys/class/hwmon/hwmon0/temp1_input)
+	CPUTEMP=$(($CPUTEMP / 1000))
+	CPUTEMP_TOTAL=$(($CPUTEMP + $CPUTEMP_TOTAL))
+	CPUTEMP_ARRAY[$CPUTEMP_COUNT]=$CPUTEMP
+	((CPUTEMP_COUNT++))	
+	if [ $CPUTEMP_COUNT -ge 3 ]; then
+		#echo "third:"$CPUTEMP
+		#echo $CPUTEMP_TOTAL
+		CPUTEMP=$(($CPUTEMP_TOTAL / 3))
+		#echo "avg3:"$CPUTEMP
+		CPUTEMP_COUNT=0
+		CPUTEMP_TOTAL=0
+	else
+		c_total=0
+		if [ ${#CPUTEMP_ARRAY[@]} -ge 3 ]; then
+			for ((i=0;i<${#CPUTEMP_ARRAY[*]};i++)) 
+			do 
+				c_total=$((${CPUTEMP_ARRAY[$i]} + $c_total))
+				#echo "i:"${CPUTEMP_ARRAY[$i]}
+			done
+			if [ $i -gt 0 ]; then
+				CPUTEMP=$(($c_total / $i))
+			fi
+        	#echo "avg1-2:"$CPUTEMP
+		else
+			#echo "first loop"
+			CPUTEMP=40
+		fi
+	fi  
+
+	#echo $MAX_temp $CPUTEMP
+	#fan_control 57 86
+	fan_control $MAX_temp $CPUTEMP
+
+	sleep 8
+done

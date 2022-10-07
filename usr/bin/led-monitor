@@ -1,0 +1,57 @@
+#!/bin/sh
+
+slots=0
+#获取硬盘位
+for _device in /sys/block/*/device; do
+    if echo $(readlink -f $_device) | egrep -q "ata"; then # ata is sata  usb  is usb
+        slot=$(readlink -f $_device)
+        slot=${slot##*/host}
+        slot=${slot%%/*}
+        if [ $slot -gt 1 ]; then
+            ((slot--))
+        else
+            slot=5
+        fi
+        slot=$((1 << $slot))
+        slots=$(($slots | $slot))
+    fi
+done
+
+#取消了硬盘错误状态监测， 盘位更新各种监测。 只检测盘位是否存在
+
+slots=$(($slots >> 1))
+led-ctl -i $slots &
+
+#IP=`ping -c 2 www.baidu.com | head -2  | tail -1 | awk '{print $5}' | sed 's/[(:)]//g'`
+while [ 1 ]; do
+    ifconfig bond0 | grep RUNNING
+
+    if [ $? -eq 0 ]; then
+
+        # 取消了检测ip配置是否错误，ip是否冲突
+        # 取消了官方的sdvn连接
+        ping www.baidu.com -c 1
+        if [ $? -eq 0 ]; then
+            rm -rf /tmp/noeth.flag
+            rm -rf /tmp/anoeth.flag
+            except_count=0
+        else
+            if [ ${except_count} -gt 2 ]; then
+                echo "eth0" >/tmp/noeth.flag
+                killall udhcpc
+                except_count=0
+            else
+                ((except_count++))
+            fi
+        fi
+    else
+
+        echo "eth0" >/tmp/noeth.flag
+        if [ "X"$IP == "X" ]; then
+            IP=`ping -c 2 www.baidu.com | head -2  | tail -1 | awk '{print $5}' | sed 's/[(:)]//g'`
+        fi
+        #  fi
+    fi
+    sleep 2
+done
+
