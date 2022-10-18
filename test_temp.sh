@@ -17,7 +17,7 @@ for _device in /sys/block/*/device; do
         if [ X"$dev" != "Xnull" -a X"$dev" != "X" ]; then
             STATUS0=$(hdparm -C $dev | sed -n '3p' | awk '{print $4}')
             if [ X"$STATUS0" != "Xstandby" ]; then
-                echo $dev ": " $(smartctl -A $dev | sed -n '/Temperature_Celsius/p' | awk '{print $10}')
+                echo $dev": " $(smartctl -A $dev | sed -n '/Temperature_Celsius/p' | awk '{print $10}')
                 
             else
                 echo $dev "standby"
@@ -28,5 +28,5 @@ for _device in /sys/block/*/device; do
 done
 
 #风扇转速
-echo "fan1 : " $(fan-ctl -g -i 1)
-echo "fan2 : " $(fan-ctl -g -i 2)
+echo "fan1: " $(fan-ctl -g -i 1)
+echo "fan2: " $(fan-ctl -g -i 2)
