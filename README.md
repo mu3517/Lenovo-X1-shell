@@ -4,6 +4,8 @@
     1. 先ssh登陆，切换到root账户。运行 sudo -i 
 
     2. 把全部文件copy到任意目录，运行 ./install.sh
+
+    3. 群晖里需要把网络设置成bond模式。独立网卡模式检测不了网络状态。
  
  ![运行测试程序](./images/1.png)
  ![状态灯](./images/2.png)
