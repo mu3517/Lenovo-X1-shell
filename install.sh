@@ -38,6 +38,9 @@ chmod 0755 /usr/bin/fan-monitor
 chmod 0755 /usr/bin/led-monitor
 echo "copy monitor-files seccuss. \n"
 
+if [ ! -d “/lib/systemd/system” ];then
+    mkdir -p /lib/systemd/system
+fi
 cp ./lib/systemd/system/led-monitor.service /lib/systemd/system/
 cp ./lib/systemd/system/fan-monitor.service /lib/systemd/system/
 chmod 0755 /lib/systemd/system/led-monitor.service
