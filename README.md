@@ -8,6 +8,11 @@
     2. 把全部文件copy到任意目录，运行 ./install.sh
 
     3. 群晖里需要把网络设置成bond模式。独立网卡模式检测不了网络状态。
+    
+####
+    重启对应的服务。（开机运行20天左右碰到过一次服务卡死，网络状态灯显示一直闪烁重启就行。）
+    LED重启命令：systemctl restart led-monitor
+    风扇重启命令：systemctl restart fan-monitor
  
  ![运行测试程序](./images/1.png)
  ![状态灯](./images/2.png)
